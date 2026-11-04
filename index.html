@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NutriNav AI - 智慧外食營養導航與熱量分析系統</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts Inter & Noto Sans TC -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Chart.js for nutrition donut visualizer -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
+          },
+          colors: {
+            emerald: {
+              400: '#34d399',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+            },
+            brand: {
+              dark: '#0f172a',
+              card: '#1e293b',
+              accent: '#10b981',
+              hover: '#059669',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Smooth transitions and custom scrollbar */
+    body {
+      background-color: #0b1120;
+      color: #f1f5f9;
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    .glassmorphism {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glow-emerald {
+      box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.25);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-emerald-500 selection:text-white">
+
+  <!-- Top Navigation Header -->
+  <header class="sticky top-0 z-50 glassmorphism border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+          <i data-lucide="compass" class="w-6 h-6 text-white"></i>
+        </div>
+        <div>
+          <span class="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">NutriNav AI</span>
+          <span class="hidden sm:inline-block ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-950/70 border border-emerald-500/30 text-emerald-300">競賽展示版</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="hidden md:flex items-center gap-2 text-xs text-slate-400 bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700/60">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>定位狀態: <strong class="text-slate-200" id="current-location-text">台灣高雄市 (已就緒)</strong></span>
+        </div>
+        <button onclick="scrollToSection('nearby-radar')" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-emerald-900/30">
+          <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
+          <span>搜尋周邊外食</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
+
+    <!-- 1. Hero & Goal Setting Dashboard Section -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+      <!-- Left: Profile & Mode Setting -->
+      <div class="lg:col-span-5 glassmorphism rounded-2xl p-6 border border-slate-800/90 flex flex-col justify-between shadow-xl">
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-bold flex items-center gap-2 text-slate-100">
+              <i data-lucide="sliders" class="w-5 h-5 text-emerald-400"></i>
+              今日飲食目標設定
+            </h2>
+            <span class="text-xs text-emerald-400 font-medium px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800" id="goal-tag">減脂控制中</span>
+          </div>
+          
+          <p class="text-xs text-slate-400 mb-6">設定今天的目標熱量與飲食模式，AI 將以此自動為你篩選周邊適合的外食餐點。</p>
+
+          <!-- Goal Mode Selector -->
+          <div class="grid grid-cols-3 gap-2.5 mb-6">
+            <button onclick="setMode('fat-loss')" id="mode-fat-loss" class="mode-btn active p-3 rounded-xl border border-emerald-500 bg-emerald-950/60 text-emerald-300 flex flex-col items-center justify-center text-xs font-semibold gap-1 transition">
+              <i data-lucide="flame" class="w-4 h-4 text-emerald-400"></i>
+              <span>減脂瘦身</span>
+            </button>
+            <button onclick="setMode('maintain')" id="mode-maintain" class="mode-btn p-3 rounded-xl border border-slate-700 bg-slate-800/50 hover:bg-slate-800 text-slate-300 flex flex-col items-center justify-center text-xs font-semibold gap-1 transition">
+              <i data-lucide="scale" class="w-4 h-4 text-slate-400"></i>
+              <span>平衡維持</span>
+            </button>
+            <button onclick="setMode('muscle')" id="mode-muscle" class="mode-btn p-3 rounded-xl border border-slate-700 bg-slate-800/50 hover:bg-slate-800 text-slate-300 flex flex-col items-center justify-center text-xs font-semibold gap-1 transition">
+              <i data-lucide="dumbbell" class="w-4 h-4 text-amber-400"></i>
+              <span>增肌高蛋白</span>
+            </button>
+          </div>
+
+          <!-- Calories Inputs -->
+          <div class="space-y-4">
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-slate-300">一日目標總熱量 (Target TDEE)</span>
+                <span class="text-emerald-400 font-bold" id="target-cal-text">1800 kcal</span>
+              </div>
+              <input type="range" id="target-cal-range" min="1200" max="3200" step="50" value="1800" oninput="updateCalories()" class="w-full accent-emerald-500 bg-slate-700 h-2 rounded-lg cursor-pointer">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 pt-2">
+              <div class="bg-slate-800/60 p-3 rounded-xl border border-slate-700/50">
+                <span class="text-[11px] text-slate-400 block mb-0.5">今天已攝取</span>
+                <div class="flex items-baseline gap-1">
+                  <input type="number" id="consumed-cal-input" value="1150" min="0" max="4000" oninput="updateCalories()" class="bg-transparent text-lg font-bold text-white w-20 focus:outline-none focus:border-b border-emerald-400">
+                  <span class="text-xs text-slate-400">kcal</span>
+                </div>
+              </div>
+              <div class="bg-emerald-950/40 p-3 rounded-xl border border-emerald-500/30">
+                <span class="text-[11px] text-emerald-400 block mb-0.5">目前這餐剩餘可用</span>
+                <div class="flex items-baseline gap-1">
+                  <span id="remaining-cal" class="text-lg font-extrabold text-emerald-300">650</span>
+                  <span class="text-xs text-emerald-500/80">kcal</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+          <span>AI 建議此餐蛋白質: <strong class="text-emerald-300 font-bold" id="suggested-protein">≥ 35g</strong></span>
+          <span class="text-[10px] text-slate-500">智能動態計算</span>
+        </div>
+      </div>
+
+      <!-- Right: Macro Nutrition Visualizer & Status -->
+      <div class="lg:col-span-7 glassmorphism rounded-2xl p-6 border border-slate-800/90 flex flex-col justify-between shadow-xl">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+              <i data-lucide="pie-chart" class="w-5 h-5 text-teal-400"></i>
+              今日三大營養素配額即時狀態
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">依據你的當前目標，監測熱量剩餘與蛋白質/碳水/脂肪攝取比例</p>
+          </div>
+          <button onclick="resetMacros()" class="text-xs text-slate-400 hover:text-slate-200 transition underline">重設數值</button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center my-3">
+          <!-- Donut chart -->
+          <div class="md:col-span-5 flex justify-center relative">
+            <div class="w-44 h-44 relative">
+              <canvas id="macroChart"></canvas>
+              <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span class="text-xs text-slate-400">剩餘熱量</span>
+                <span class="text-2xl font-black text-emerald-400" id="center-cal-number">650</span>
+                <span class="text-[10px] text-slate-500">kcal</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Macro Progress Bars -->
+          <div class="md:col-span-7 space-y-4">
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-slate-300 flex items-center gap-1.5 font-medium">
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>蛋白質 (Protein)
+                </span>
+                <span class="text-slate-400" id="protein-status-text">75g / 130g</span>
+              </div>
+              <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                <div id="protein-bar" class="bg-emerald-400 h-2.5 rounded-full transition-all duration-500" style="width: 58%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-slate-300 flex items-center gap-1.5 font-medium">
+                  <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>碳水化合物 (Carbs)
+                </span>
+                <span class="text-slate-400" id="carbs-status-text">140g / 200g</span>
+              </div>
+              <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                <div id="carbs-bar" class="bg-cyan-400 h-2.5 rounded-full transition-all duration-500" style="width: 70%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-slate-300 flex items-center gap-1.5 font-medium">
+                  <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>脂肪 (Fat)
+                </span>
+                <span class="text-slate-400" id="fat-status-text">35g / 50g</span>
+              </div>
+              <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                <div id="fat-bar" class="bg-amber-400 h-2.5 rounded-full transition-all duration-500" style="width: 70%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-slate-800/50 rounded-xl p-3 border border-slate-700/50 flex items-center gap-3">
+          <i data-lucide="sparkles" class="w-5 h-5 text-amber-400 shrink-0"></i>
+          <p class="text-xs text-slate-300 leading-relaxed" id="dashboard-ai-tip">
+            <span class="text-emerald-400 font-semibold">AI 策略提示：</span>
+            你今天還剩下 650 kcal 額度，建議下一餐以外食「高蛋白質＋蔬菜量充沛」為主，並主動要求白飯減量 1/3，以保留優質蛋白質與微量元素攝取空間。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. AI GPS Nearby Food Radar Section -->
+    <section id="nearby-radar" class="space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+              <i data-lucide="radar" class="w-6 h-6 text-emerald-400 animate-spin" style="animation-duration: 9s;"></i>
+              附近外食 AI 智能雷達導航
+            </h2>
+            <span class="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-medium border border-emerald-500/40">半徑 800m 搜尋</span>
+          </div>
+          <p class="text-xs text-slate-400 mt-1">
+            依據你剩餘的 <strong class="text-emerald-400" id="radar-remaining-kcal">650 kcal</strong>，AI 智慧比對附近店家菜單，推薦能吃得飽又不超標的在地吃法。
+          </p>
+        </div>
+
+        <!-- Filter Tags and Refresh -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <button onclick="triggerRadarScan()" class="bg-slate-800 hover:bg-slate-700 text-xs text-emerald-400 border border-emerald-500/30 font-medium px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refresh-icon"></i>
+            <span>重新定位掃描</span>
+          </button>
+          <div class="flex rounded-xl bg-slate-800/80 p-1 border border-slate-700/80 text-xs">
+            <button onclick="filterRadar('all')" id="filter-all" class="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-medium filter-tab">全部</button>
+            <button onclick="filterRadar('fit')" id="filter-fit" class="px-2.5 py-1 rounded-lg text-slate-300 hover:text-white filter-tab">符合熱量額度</button>
+            <button onclick="filterRadar('high-protein')" id="filter-high-protein" class="px-2.5 py-1 rounded-lg text-slate-300 hover:text-white filter-tab">高蛋白質 (≥35g)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Radar Restaurant Cards Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="restaurant-cards-container">
+        <!-- Cards will be populated by JavaScript -->
+      </div>
+    </section>
+
+    <!-- 3. AI Food & Menu Photo/Text Nutrition Analyzer Section -->
+    <section class="glassmorphism rounded-2xl p-6 lg:p-8 border border-slate-800 shadow-2xl relative overflow-hidden">
+      <!-- Glow ambient background -->
+      <div class="absolute -right-20 -bottom-20 w-80 h-80 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="max-w-3xl mb-6">
+        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+          <i data-lucide="scan-line" class="w-6 h-6 text-emerald-400"></i>
+          AI 外食菜色與菜單營養拆解分析器
+        </h2>
+        <p class="text-xs text-slate-400 mt-1">
+          不管是路邊小吃攤、便當店還是便利商店，輸入餐點菜名或上傳餐點照片，由 AI 自動拆解食材成份、估算熱量與三大營養素，並給出營養師等級的替換吃法。
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <!-- Input Form Area -->
+        <div class="lg:col-span-6 space-y-4">
+          <!-- Text Input -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">輸入餐點內容 / 菜單項目：</label>
+            <div class="relative">
+              <input type="text" id="food-input-text" placeholder="例如：台式炸排骨便當、超商溫泉蛋雙雞肉沙拉..." class="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition shadow-inner">
+            </div>
+          </div>
+
+          <!-- Quick Template Chips -->
+          <div>
+            <span class="text-[11px] text-slate-400 block mb-1.5 font-medium">點擊快速試算常見外食：</span>
+            <div class="flex flex-wrap gap-1.5">
+              <button onclick="fillSampleFood('台式脆皮排骨便當 (含炸排骨、滷蛋、油豆腐、炒青菜、白飯)')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-emerald-300 px-2.5 py-1.5 rounded-lg border border-slate-700 transition">🍗 傳統炸排骨便當</button>
+              <button onclick="fillSampleFood('義式舒肥雞胸肉溫沙拉 + 無糖黑豆漿')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-emerald-300 px-2.5 py-1.5 rounded-lg border border-slate-700 transition">🥗 舒肥雞胸肉沙拉</button>
+              <button onclick="fillSampleFood('清燉半筋半肉牛肉麵 (大碗、寬麵、附青江菜)')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-emerald-300 px-2.5 py-1.5 rounded-lg border border-slate-700 transition">🍜 清燉牛肉麵</button>
+              <button onclick="fillSampleFood('鮪魚起司蛋餅 + 熱無糖美式咖啡')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-emerald-300 px-2.5 py-1.5 rounded-lg border border-slate-700 transition">🍳 鮪魚起司蛋餅</button>
+              <button onclick="fillSampleFood('夜市加熱滷味 (豆乾、高麗菜、去皮雞肉、王子麵、金針菇)')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-emerald-300 px-2.5 py-1.5 rounded-lg border border-slate-700 transition">🥬 夜市加熱滷味</button>
+            </div>
+          </div>
+
+          <!-- Image Upload / Camera Simulation Area -->
+          <div class="border-2 border-dashed border-slate-700/80 hover:border-emerald-500/60 rounded-xl p-4 text-center cursor-pointer transition bg-slate-900/30 group" onclick="triggerPhotoUpload()">
+            <input type="file" id="food-photo-input" accept="image/*" class="hidden" onchange="handleImageSelected(event)">
+            <div id="upload-placeholder" class="space-y-2">
+              <div class="w-10 h-10 rounded-full bg-slate-800 mx-auto flex items-center justify-center text-slate-400 group-hover:text-emerald-400 group-hover:scale-110 transition">
+                <i data-lucide="camera" class="w-5 h-5"></i>
+              </div>
+              <div class="text-xs text-slate-300 font-medium">點擊模擬拍照或上傳餐點照片</div>
+              <p class="text-[11px] text-slate-500">支援拍照辨識便當配菜、餐廳實拍或實體菜單</p>
+            </div>
+            <div id="image-preview-container" class="hidden flex items-center justify-center gap-3">
+              <img id="image-preview" src="" alt="預覽" class="w-16 h-16 object-cover rounded-lg border border-emerald-500/50 shadow">
+              <div class="text-left">
+                <span class="text-xs text-emerald-400 font-semibold block">已載入餐點影像</span>
+                <span class="text-[11px] text-slate-400" id="image-file-name">photo.jpg</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Analyze Action Button -->
+          <button onclick="analyzeFoodNutrition()" id="btn-analyze" class="w-full bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold py-3.5 px-4 rounded-xl transition shadow-lg shadow-emerald-900/40 flex items-center justify-center gap-2 group">
+            <i data-lucide="sparkles" class="w-5 h-5 text-emerald-200 group-hover:rotate-12 transition transform"></i>
+            <span id="analyze-button-text">啟動 AI 營養拆解與熱量精算</span>
+          </button>
+        </div>
+
+        <!-- AI Nutrition Result Output Card -->
+        <div class="lg:col-span-6 bg-slate-900/90 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl relative min-h-[380px] flex flex-col justify-between">
+          <!-- Loading State Overlay -->
+          <div id="ai-loading-overlay" class="hidden absolute inset-0 bg-slate-900/90 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center z-20 space-y-3">
+            <div class="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+            <p class="text-xs text-emerald-400 font-medium animate-pulse" id="loading-step-text">正在拆解食材組成與外食油鹽佔比...</p>
+          </div>
+
+          <!-- Results View -->
+          <div id="result-content-view">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+              <div>
+                <span class="text-[10px] text-emerald-400 font-mono tracking-widest uppercase">AI Nutrition Diagnosis</span>
+                <h3 class="text-base font-bold text-white" id="res-food-name">台式脆皮排骨便當</h3>
+              </div>
+              <div class="text-right">
+                <span class="text-2xl font-black text-amber-400" id="res-calories">820</span>
+                <span class="text-xs text-slate-400 block -mt-1">大卡 (kcal)</span>
+              </div>
+            </div>
+
+            <!-- Macros Cards Breakdown -->
+            <div class="grid grid-cols-3 gap-2.5 mb-4 text-center">
+              <div class="bg-slate-800/70 p-2.5 rounded-xl border border-slate-700/60">
+                <span class="text-[10px] text-slate-400 block">蛋白質</span>
+                <strong class="text-emerald-400 text-base" id="res-protein">28g</strong>
+                <div class="text-[10px] text-slate-500 mt-0.5">約 112 kcal</div>
+              </div>
+              <div class="bg-slate-800/70 p-2.5 rounded-xl border border-slate-700/60">
+                <span class="text-[10px] text-slate-400 block">碳水化合物</span>
+                <strong class="text-cyan-400 text-base" id="res-carbs">95g</strong>
+                <div class="text-[10px] text-slate-500 mt-0.5">約 380 kcal</div>
+              </div>
+              <div class="bg-slate-800/70 p-2.5 rounded-xl border border-slate-700/60">
+                <span class="text-[10px] text-slate-400 block">脂肪油脂</span>
+                <strong class="text-amber-400 text-base" id="res-fat">36g</strong>
+                <div class="text-[10px] text-slate-500 mt-0.5">約 324 kcal</div>
+              </div>
+            </div>
+
+            <!-- Detailed Food Item Breakdown -->
+            <div class="mb-4">
+              <h4 class="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-1.5">
+                <i data-lucide="layers" class="w-3.5 h-3.5 text-emerald-400"></i>
+                食材成分與熱量拆解明細：
+              </h4>
+              <ul class="text-xs space-y-1.5 text-slate-300" id="res-ingredients-list">
+                <li class="flex justify-between bg-slate-800/40 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                  <span>炸裹粉帶骨里肌排 (油炸熱量高)</span>
+                  <span class="text-amber-400 font-medium">~360 kcal / 22g 蛋白</span>
+                </li>
+                <li class="flex justify-between bg-slate-800/40 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                  <span>白米飯一平碗 (約 200g)</span>
+                  <span class="text-slate-400 font-medium">~280 kcal / 62g 碳水</span>
+                </li>
+                <li class="flex justify-between bg-slate-800/40 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                  <span>配菜：滷蛋半顆 + 炒高麗菜 + 油豆腐</span>
+                  <span class="text-slate-400 font-medium">~180 kcal / 油脂偏重</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Smart Customization Suggestion -->
+            <div class="bg-emerald-950/40 border border-emerald-600/30 rounded-xl p-3">
+              <h4 class="text-xs font-bold text-emerald-300 flex items-center gap-1.5 mb-1">
+                <i data-lucide="lightbulb" class="w-3.5 h-3.5 text-amber-400"></i>
+                AI 營養師客製化點餐訣竅：
+              </h4>
+              <p class="text-xs text-slate-300 leading-relaxed" id="res-ai-advice">
+                這餐對於剩餘 650 kcal 額度略微超標！建議：「請店家飯量減半（現省約 140 kcal）」、剝除油炸外層麵衣，或將油豆腐換成蒸蛋/多一份燙青菜，熱量可直接壓在 590 kcal 內，完美符合減脂目標！
+              </p>
+            </div>
+          </div>
+
+          <!-- Action Log to Day -->
+          <div class="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
+            <span class="text-[11px] text-slate-400">若確定食用此餐，可直接累計至今日記錄</span>
+            <button onclick="logThisMealToDay()" class="text-xs bg-slate-800 hover:bg-emerald-600 text-slate-200 hover:text-white px-3 py-1.5 rounded-lg transition border border-slate-700 flex items-center gap-1">
+              <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+              <span>加入今日日記</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Competition & Architecture Info Card (AI 競賽亮點專區) -->
+    <section class="glassmorphism rounded-2xl p-6 border border-slate-800 shadow-xl">
+      <div class="flex items-center gap-2 mb-4">
+        <div class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></div>
+        <h3 class="text-sm font-bold tracking-wide uppercase text-emerald-400">AI 創意競賽專案技術亮點架構說明</h3>
+      </div>
+      
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-850">
+          <div class="font-bold text-slate-200 flex items-center gap-2 mb-2">
+            <i data-lucide="map" class="w-4 h-4 text-emerald-400"></i>
+            1. 地理空間與雷達過濾
+          </div>
+          <p class="text-slate-400 leading-relaxed">
+            串接使用者即時地理定位（HTML5 Geolocation / Google Places），自動依使用者當前剩餘熱量與微量營養素動態計算周邊推薦權重，解決市面熱量 App 只能記帳卻無法外食導航的痛點。
+          </p>
+        </div>
+
+        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-850">
+          <div class="font-bold text-slate-200 flex items-center gap-2 mb-2">
+            <i data-lucide="cpu" class="w-4 h-4 text-teal-400"></i>
+            2. 多模態 AI 食材拆解模型
+          </div>
+          <p class="text-slate-400 leading-relaxed">
+            整合台灣常見外食營養成分與 LLM（如 Gemini API）提示工程，即使面對小吃攤未標示成分之複雜複合食物，也能拆解出炸粉、油量與原型食材比例，並給予換算法。
+          </p>
+        </div>
+
+        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-850">
+          <div class="font-bold text-slate-200 flex items-center gap-2 mb-2">
+            <i data-lucide="cloud" class="w-4 h-4 text-cyan-400"></i>
+            3. Cloudflare 全球邊緣秒速部署
+          </div>
+          <p class="text-slate-400 leading-relaxed">
+            架構採用 Cloudflare Pages 邊緣節點極速分發。純靜態或輕量 Workers 即可全球 CDN 託管，支援手機免下載即開即用，Demo 展示評審手機掃描即可零延遲體驗。
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Interactive Modal: View Meal Details & Custom Advice -->
+  <div id="meal-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 max-w-lg w-full rounded-2xl p-6 shadow-2xl relative animate-in fade-in zoom-in duration-200">
+      <button onclick="closeMealModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-12 h-12 rounded-xl bg-emerald-950 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-xl font-bold" id="modal-place-badge">
+          🏪
+        </div>
+        <div>
+          <span class="text-xs text-emerald-400 font-semibold" id="modal-place-type">連鎖便利超商</span>
+          <h3 class="text-lg font-bold text-white" id="modal-title">香草烤雞腿佐藜麥飯便當</h3>
+        </div>
+      </div>
+
+      <div class="bg-slate-800/70 rounded-xl p-3 mb-4 border border-slate-700/60 grid grid-cols-4 text-center">
+        <div>
+          <span class="text-[10px] text-slate-400 block">熱量</span>
+          <span class="text-base font-black text-amber-400" id="modal-cal">520 kcal</span>
+        </div>
+        <div>
+          <span class="text-[10px] text-slate-400 block">蛋白質</span>
+          <span class="text-base font-bold text-emerald-400" id="modal-pro">38g</span>
+        </div>
+        <div>
+          <span class="text-[10px] text-slate-400 block">碳水</span>
+          <span class="text-base font-bold text-cyan-400" id="modal-carb">45g</span>
+        </div>
+        <div>
+          <span class="text-[10px] text-slate-400 block">脂肪</span>
+          <span class="text-base font-bold text-orange-400" id="modal-fat">14g</span>
+        </div>
+      </div>
+
+      <div class="space-y-3 mb-6">
+        <div>
+          <h4 class="text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
+            <i data-lucide="compass" class="w-3.5 h-3.5 text-emerald-400"></i> 店家與距離：
+          </h4>
+          <p class="text-xs text-slate-400" id="modal-distance">全家便利商店 高科大門市 (距離目前位置約 120 公尺)</p>
+        </div>
+
+        <div>
+          <h4 class="text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
+            <i data-lucide="chef-hat" class="w-3.5 h-3.5 text-emerald-400"></i> AI 現場點餐減油技巧：
+          </h4>
+          <p class="text-xs text-slate-300 bg-emerald-950/30 border border-emerald-500/20 p-2.5 rounded-lg leading-relaxed" id="modal-tip">
+            這道主食非常適合減脂！若想更乾淨，可將雞皮剝除不吃（能再扣除約 60 大卡與 6g 飽和脂肪），並額外搭配一包即食花椰菜增加飽足感。
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-2.5">
+        <button onclick="closeMealModal()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium py-2.5 rounded-xl transition">
+          返回雷達
+        </button>
+        <button onclick="chooseRadarItem()" class="w-1/2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 shadow-md shadow-emerald-900/30">
+          <i data-lucide="check" class="w-4 h-4"></i>
+          <span>採納這餐推薦</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast-msg" class="fixed bottom-6 right-6 z-50 bg-emerald-900/90 border border-emerald-500 text-white px-4 py-3 rounded-xl shadow-2xl transition-all duration-300 transform translate-y-20 opacity-0 flex items-center gap-2 text-xs">
+    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-300 shrink-0"></i>
+    <span id="toast-text">已更新飲食目標設定！</span>
+  </div>
+
+  <!-- Footer -->
+  <footer class="mt-auto border-t border-slate-800/80 py-6 text-center text-xs text-slate-500 glassmorphism">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <span>NutriNav AI © 2026 AI 應用創意競賽專案 - 專為外食族設計的營養導航系統</span>
+      <div class="flex items-center gap-4 text-slate-400">
+        <span class="hover:text-emerald-400 cursor-pointer" onclick="showToast('已支援 Cloudflare Pages 單檔直接拖拉部署！')">Cloudflare Pages 友善架構</span>
+        <span>•</span>
+        <span class="hover:text-emerald-400 cursor-pointer" onclick="showToast('模擬定位：高雄市三民區')">GPS Radar Active</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Application Logic Scripts -->
+  <script>
+    // State management
+    let currentMode = 'fat-loss'; // 'fat-loss', 'maintain', 'muscle'
+    let targetCalories = 1800;
+    let consumedCalories = 1150;
+    let remainingCalories = 650;
+    let macroChartInstance = null;
+    let activeFilter = 'all';
+
+    // Mock Database for Nearby Restaurants and Meals (Taiwan local context)
+    const nearbyMealsData = [
+      {
+        id: '1',
+        shopName: '能量減脂極限廚房 (健康餐盒)',
+        foodName: '炙燒舒肥厚切雞胸便當',
+        shopType: '健康減脂餐',
+        distance: '180m',
+        calories: 510,
+        protein: 46,
+        carbs: 48,
+        fat: 10,
+        badge: '🥗 高蛋白首選',
+        aiAdvice: '米飯採用紫米與地瓜，抗性澱粉高且升糖平緩；蔬菜水煮少油，蛋白質高達 46g，減脂增肌都非常完美！'
+      },
+      {
+        id: '2',
+        shopName: '全家便利商店 (高科旗艦店)',
+        foodName: '烤雞胸沙拉 + 茶葉蛋 + 無糖豆漿',
+        shopType: '連鎖超商',
+        distance: '90m',
+        calories: 390,
+        protein: 38,
+        carbs: 18,
+        fat: 14,
+        badge: '⚡ 快速方便',
+        aiAdvice: '最適合忙碌學生的外食黃金公式！熱量不到 400 kcal，同時補充充足蛋白質與膳食纖維，超商隨手可得。'
+      },
+      {
+        id: '3',
+        shopName: '老牌正宗港式燒臘便當',
+        foodName: '玫瑰油雞便當 (請老闆飯半碗)',
+        shopType: '便當店',
+        distance: '320m',
+        calories: 620,
+        protein: 34,
+        carbs: 65,
+        fat: 22,
+        badge: '🍗 平價傳統',
+        aiAdvice: '傳統燒臘熱量通常在 850+ kcal。只要向老闆要求「白飯少一半、去雞皮、不要淋油蔥醬汁」，即可無痛降至 620 kcal！'
+      },
+      {
+        id: '4',
+        shopName: '現煮健康加熱滷味',
+        foodName: '高麗菜 + 蒸煮麵 + 雞里肌 + 大黑豆干',
+        shopType: '小吃攤',
+        distance: '450m',
+        calories: 460,
+        protein: 36,
+        carbs: 52,
+        fat: 9,
+        badge: '🥬 蔬菜量高',
+        aiAdvice: '避開貢丸、百頁豆腐等高脂加工火鍋料，以原型豆乾、雞肉為主，湯頭不喝，是夜市非常乾淨的選擇。'
+      },
+      {
+        id: '5',
+        shopName: '初原清燉牛肉麵館',
+        foodName: '清燉半筋半肉細麵 (多蔥花)',
+        shopType: '麵館',
+        distance: '580m',
+        calories: 640,
+        protein: 37,
+        carbs: 72,
+        fat: 16,
+        badge: '🍜 暖胃優選',
+        aiAdvice: '選擇清燉而非紅燒可減少大量牛油與重鹹豆瓣醬；牛肉與牛筋富含膠原與優質蛋白，湯喝一半即可避免鈉過量。'
+      },
+      {
+        id: '6',
+        shopName: '八方雲集 水餃鍋貼專賣',
+        foodName: '田園蔬菜水餃 8 顆 + 蕈菇湯',
+        shopType: '連鎖餐飲',
+        distance: '240m',
+        calories: 480,
+        protein: 18,
+        carbs: 58,
+        fat: 18,
+        badge: '🥟 份量好控',
+        aiAdvice: '建議點水餃取代油煎鍋貼（每顆鍋貼多 15-20 kcal 油脂）。控制在 8-10 顆水餃搭配清湯，飽足感十足。'
+      }
+    ];
+
+    // Initialize Page
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      initMacroChart();
+      updateCalories();
+      renderRadarCards();
+    });
+
+    // Chart.js Donut Chart
+    function initMacroChart() {
+      const ctx = document.getElementById('macroChart').getContext('2d');
+      macroChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['蛋白質 (g)', '碳水 (g)', '脂肪 (g)'],
+          datasets: [{
+            data: [75 * 4, 140 * 4, 35 * 9], // in calories
+            backgroundColor: ['#34d399', '#22d3ee', '#fbbf24'],
+            borderWidth: 0,
+            hoverOffset: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '76%',
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return ` ${context.label}: ${context.raw} kcal`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Mode Selector logic
+    function setMode(mode) {
+      currentMode = mode;
+      document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.classList.remove('active', 'border-emerald-500', 'bg-emerald-950/60', 'text-emerald-300');
+        btn.classList.add('border-slate-700', 'bg-slate-800/50', 'text-slate-300');
+      });
+
+      const activeBtn = document.getElementById(`mode-${mode}`);
+      activeBtn.classList.add('active', 'border-emerald-500', 'bg-emerald-950/60', 'text-emerald-300');
+      activeBtn.classList.remove('border-slate-700', 'bg-slate-800/50', 'text-slate-300');
+
+      const goalTag = document.getElementById('goal-tag');
+      const aiTip = document.getElementById('dashboard-ai-tip');
+      const slider = document.getElementById('target-cal-range');
+
+      if (mode === 'fat-loss') {
+        goalTag.textContent = '減脂瘦身中';
+        slider.value = 1800;
+        aiTip.innerHTML = `<span class="text-emerald-400 font-semibold">AI 減脂策略：</span> 目前以熱量赤字為主，建議將碳水集中在運動前後，多挑選高飽足感之低 GI 原型蔬菜與去皮白肉。`;
+      } else if (mode === 'maintain') {
+        goalTag.textContent = '平衡維持中';
+        slider.value = 2100;
+        aiTip.innerHTML = `<span class="text-cyan-400 font-semibold">AI 平衡維持：</span> 熱量達能量平衡，可維持三大營養素均衡攝取（蛋白 20-25%、碳水 50%、脂肪 25-30%）。`;
+      } else if (mode === 'muscle') {
+        goalTag.textContent = '增肌高蛋白';
+        slider.value = 2400;
+        aiTip.innerHTML = `<span class="text-amber-400 font-semibold">AI 增肌提示：</span> 需維持微熱量盈餘，單餐蛋白質建議拉高至 40g 以上，搭配複合碳水如燕麥、地瓜以促進肌肉修復與合成。`;
+      }
+
+      updateCalories();
+      showToast(`已切換飲食模式至：${goalTag.textContent}`);
+    }
+
+    // Recalculate Calories and remaining macros
+    function updateCalories() {
+      const targetVal = parseInt(document.getElementById('target-cal-range').value);
+      const consumedVal = parseInt(document.getElementById('consumed-cal-input').value) || 0;
+
+      targetCalories = targetVal;
+      consumedCalories = consumedVal;
+      remainingCalories = Math.max(0, targetCalories - consumedCalories);
+
+      document.getElementById('target-cal-text').textContent = `${targetCalories} kcal`;
+      document.getElementById('remaining-cal').textContent = remainingCalories;
+      document.getElementById('center-cal-number').textContent = remainingCalories;
+      document.getElementById('radar-remaining-kcal').textContent = `${remainingCalories} kcal`;
+
+      // Update Suggested Protein
+      let suggestedProtein = 35;
+      if (currentMode === 'muscle') suggestedProtein = 45;
+      if (currentMode === 'fat-loss') suggestedProtein = 38;
+      document.getElementById('suggested-protein').textContent = `≥ ${suggestedProtein}g`;
+
+      // Update Visual Bars
+      const pPercent = Math.min(100, Math.round((75 / (targetCalories * 0.25 / 4)) * 100));
+      const cPercent = Math.min(100, Math.round((140 / (targetCalories * 0.50 / 4)) * 100));
+      const fPercent = Math.min(100, Math.round((35 / (targetCalories * 0.25 / 9)) * 100));
+
+      document.getElementById('protein-bar').style.width = `${pPercent}%`;
+      document.getElementById('carbs-bar').style.width = `${cPercent}%`;
+      document.getElementById('fat-bar').style.width = `${fPercent}%`;
+
+      renderRadarCards();
+    }
+
+    function resetMacros() {
+      document.getElementById('consumed-cal-input').value = 0;
+      updateCalories();
+      showToast('今日已重設為早晨空腹狀態');
+    }
+
+    // Render GPS Radar Restaurant Cards
+    function renderRadarCards() {
+      const container = document.getElementById('restaurant-cards-container');
+      container.innerHTML = '';
+
+      let filteredList = nearbyMealsData;
+      if (activeFilter === 'fit') {
+        filteredList = nearbyMealsData.filter(m => m.calories <= remainingCalories);
+      } else if (activeFilter === 'high-protein') {
+        filteredList = nearbyMealsData.filter(m => m.protein >= 35);
+      }
+
+      if (filteredList.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full py-12 text-center text-slate-400 glassmorphism rounded-2xl">
+            <i data-lucide="info" class="w-8 h-8 mx-auto text-amber-400 mb-2"></i>
+            <p class="text-sm font-semibold">此篩選條件下無周邊餐點</p>
+            <p class="text-xs text-slate-500 mt-1">你的目前剩餘額度較嚴格，建議調整篩選或查看全部外食！</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      filteredList.forEach(meal => {
+        const isFitsCal = meal.calories <= remainingCalories;
+        const card = document.createElement('div');
+        card.className = `glassmorphism rounded-2xl p-5 border transition-all duration-300 hover:border-emerald-500/60 hover:-translate-y-1 flex flex-col justify-between ${isFitsCal ? 'border-slate-800' : 'border-amber-900/40 opacity-90'}`;
+
+        card.innerHTML = `
+          <div>
+            <!-- Header of card -->
+            <div class="flex items-start justify-between gap-2 mb-2">
+              <span class="text-[11px] font-semibold text-slate-400 bg-slate-800/90 px-2 py-0.5 rounded-md border border-slate-700/60 flex items-center gap-1">
+                <i data-lucide="map-pin" class="w-3 h-3 text-emerald-400"></i> ${meal.distance} · ${meal.shopType}
+              </span>
+              <span class="text-[11px] font-bold px-2 py-0.5 rounded-full ${isFitsCal ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : 'bg-amber-950 text-amber-300 border border-amber-600/40'}">
+                ${isFitsCal ? '✓ 額度內' : '⚠ 略超標'}
+              </span>
+            </div>
+
+            <div class="text-[11px] text-slate-400 font-medium">${meal.shopName}</div>
+            <h3 class="text-base font-bold text-white mt-0.5 mb-3">${meal.foodName}</h3>
+
+            <!-- Calories and Macros Bar -->
+            <div class="bg-slate-900/80 rounded-xl p-3 border border-slate-800/90 mb-3">
+              <div class="flex justify-between items-baseline mb-2">
+                <span class="text-xs text-slate-400">預估熱量</span>
+                <span class="text-lg font-black ${isFitsCal ? 'text-emerald-400' : 'text-amber-400'}">${meal.calories} <span class="text-xs font-normal text-slate-400">kcal</span></span>
+              </div>
+              <div class="grid grid-cols-3 gap-1 text-[11px] text-center pt-1 border-t border-slate-800">
+                <div><span class="text-slate-500 text-[10px] block">蛋白</span><strong class="text-emerald-400">${meal.protein}g</strong></div>
+                <div><span class="text-slate-500 text-[10px] block">碳水</span><strong class="text-cyan-400">${meal.carbs}g</strong></div>
+                <div><span class="text-slate-500 text-[10px] block">脂肪</span><strong class="text-amber-400">${meal.fat}g</strong></div>
+              </div>
+            </div>
+
+            <!-- Quick AI Hint -->
+            <p class="text-xs text-slate-400 line-clamp-2 mb-4 leading-relaxed">
+              <span class="text-emerald-400 font-medium">點餐秘訣：</span>${meal.aiAdvice}
+            </p>
+          </div>
+
+          <!-- Bottom Button -->
+          <button onclick="openMealModal('${meal.id}')" class="w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-200 text-xs font-semibold transition border border-slate-700/80 flex items-center justify-center gap-1.5 group">
+            <span>查看 AI 點餐指南</span>
+            <i data-lucide="chevron-right" class="w-4 h-4 group-hover:translate-x-0.5 transition"></i>
+          </button>
+        `;
+        container.appendChild(card);
+      });
+
+      lucide.createIcons();
+    }
+
+    function filterRadar(type) {
+      activeFilter = type;
+      document.querySelectorAll('.filter-tab').forEach(tab => {
+        tab.classList.remove('bg-emerald-600', 'text-white');
+        tab.classList.add('text-slate-300');
+      });
+      const activeTab = document.getElementById(`filter-${type}`);
+      activeTab.classList.add('bg-emerald-600', 'text-white');
+      activeTab.classList.remove('text-slate-300');
+      renderRadarCards();
+    }
+
+    function triggerRadarScan() {
+      const refreshIcon = document.getElementById('refresh-icon');
+      refreshIcon.classList.add('animate-spin');
+      showToast('正在重新定位並模擬搜尋 800m 內店家菜單...');
+      setTimeout(() => {
+        refreshIcon.classList.remove('animate-spin');
+        renderRadarCards();
+        showToast('已更新最新周邊店家與餐點推薦！');
+      }, 700);
+    }
+
+    // Modal Control
+    let selectedMealInModal = null;
+
+    function openMealModal(mealId) {
+      const meal = nearbyMealsData.find(m => m.id === mealId);
+      if (!meal) return;
+      selectedMealInModal = meal;
+
+      document.getElementById('modal-title').textContent = meal.foodName;
+      document.getElementById('modal-place-type').textContent = `${meal.shopName} · ${meal.shopType}`;
+      document.getElementById('modal-cal').textContent = `${meal.calories} kcal`;
+      document.getElementById('modal-pro').textContent = `${meal.protein}g`;
+      document.getElementById('modal-carb').textContent = `${meal.carbs}g`;
+      document.getElementById('modal-fat').textContent = `${meal.fat}g`;
+      document.getElementById('modal-distance').textContent = `${meal.shopName} (距離你約 ${meal.distance})`;
+      document.getElementById('modal-tip').textContent = meal.aiAdvice;
+
+      document.getElementById('meal-modal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeMealModal() {
+      document.getElementById('meal-modal').classList.add('hidden');
+    }
+
+    function chooseRadarItem() {
+      if (selectedMealInModal) {
+        document.getElementById('consumed-cal-input').value = consumedCalories + selectedMealInModal.calories;
+        updateCalories();
+        closeMealModal();
+        showToast(`已成功記錄：${selectedMealInModal.foodName} (${selectedMealInModal.calories} kcal)！`);
+      }
+    }
+
+    // Quick Fill Food Samples
+    function fillSampleFood(name) {
+      document.getElementById('food-input-text').value = name;
+      analyzeFoodNutrition();
+    }
+
+    // Trigger Photo Upload Simulation
+    function triggerPhotoUpload() {
+      document.getElementById('food-photo-input').click();
+    }
+
+    function handleImageSelected(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById('image-preview').src = e.target.result;
+          document.getElementById('image-file-name').textContent = file.name;
+          document.getElementById('upload-placeholder').classList.add('hidden');
+          document.getElementById('image-preview-container').classList.remove('hidden');
+          
+          if (!document.getElementById('food-input-text').value) {
+            document.getElementById('food-input-text').value = "相片辨識：精選招牌健康低卡外食餐盤";
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    // AI Food Nutrition Analysis Engine (Simulation with dynamic intelligence)
+    function analyzeFoodNutrition() {
+      const inputVal = document.getElementById('food-input-text').value.trim();
+      const overlay = document.getElementById('ai-loading-overlay');
+      const stepText = document.getElementById('loading-step-text');
+
+      if (!inputVal) {
+        showToast('請先輸入餐點名稱或點選快速範本！');
+        return;
+      }
+
+      overlay.classList.remove('hidden');
+      stepText.textContent = "正在透過多模態 AI 拆解食材與烹調油脂...";
+
+      setTimeout(() => {
+        stepText.textContent = "比對台灣外食熱量資料庫與微量元素...";
+      }, 500);
+
+      setTimeout(() => {
+        generateNutritionResult(inputVal);
+        overlay.classList.add('hidden');
+        showToast('AI 營養拆解完成！');
+      }, 1000);
+    }
+
+    function generateNutritionResult(query) {
+      let cal = 580;
+      let pro = 32;
+      let carb = 60;
+      let fat = 18;
+      let advice = "";
+      let ingredients = [];
+
+      if (query.includes('排骨便當') || query.includes('炸')) {
+        cal = 830;
+        pro = 29;
+        carb = 96;
+        fat = 38;
+        ingredients = [
+          { name: "油炸裹粉帶骨排骨肉 (吸油量大)", spec: "~380 kcal / 22g 蛋白質" },
+          { name: "精緻白米飯一平碗 (約 200g)", spec: "~280 kcal / 65g 碳水" },
+          { name: "外食高油炒時蔬配菜 (3樣)", spec: "~170 kcal / 油脂重" }
+        ];
+        advice = "此餐熱量較高！AI 建議點餐技巧：請店家「飯盛半碗（現省 140 大卡）」、外層厚麵衣剝除一半食用，並將油豆腐換成蒸蛋或額外一份燙青菜不淋肉燥。";
+      } else if (query.includes('雞胸') || query.includes('沙拉')) {
+        cal = 385;
+        pro = 42;
+        carb = 22;
+        fat = 12;
+        ingredients = [
+          { name: "低溫舒肥去皮雞胸肉 (180g)", spec: "~210 kcal / 40g 蛋白質" },
+          { name: "綜合生菜堅果與溫泉蛋", spec: "~115 kcal / 膳食纖維豐富" },
+          { name: "和風油醋醬 (減半使用)", spec: "~60 kcal / 低負擔" }
+        ];
+        advice = "極高蛋白質、低飽和脂肪的完美減脂餐！非常契合你的今日熱量赤字，建議將和風醬料採沾取方式食用，避免鈉與糖過量吸收。";
+      } else if (query.includes('牛肉麵')) {
+        cal = 650;
+        pro = 38;
+        carb = 74;
+        fat = 19;
+        ingredients = [
+          { name: "燉牛腱心與牛筋 (原型肉類)", spec: "~270 kcal / 34g 蛋白質" },
+          { name: "白麵條/拉麵 (大碗約 250g)", spec: "~300 kcal / 62g 碳水" },
+          { name: "清燉牛骨大骨高湯 (含牛油)", spec: "~80 kcal / 鈉含量偏高" }
+        ];
+        advice = "建議優先挑選牛腱而非牛腩（牛腩脂肪含量高出近 3 倍）。麵條可請店家換成冬粉或少麵，並切記「湯只喝 1/3」，可大幅降低 150 大卡與鈉水腫機率。";
+      } else if (query.includes('蛋餅')) {
+        cal = 410;
+        pro = 22;
+        carb = 36;
+        fat = 20;
+        ingredients = [
+          { name: "原味蛋餅皮與雞蛋 (煎台用油)", spec: "~250 kcal / 油脂偏多" },
+          { name: "油水鮪魚與切達起司片", spec: "~160 kcal / 16g 蛋白質" }
+        ];
+        advice = "早餐店蛋餅因煎台油量較多，油脂佔比偏高。建議搭配無糖黑咖啡或無糖高纖豆漿，不要淋醬油膏或甜辣醬以避開隱藏糖份。";
+      } else {
+        // Generic AI Calculation
+        cal = 540;
+        pro = 30;
+        carb = 55;
+        fat = 16;
+        ingredients = [
+          { name: `主要蛋白質與主食 (${query})`, spec: "~380 kcal / 均衡分佈" },
+          { name: "烹調配料、外食調味油與醬汁", spec: "~160 kcal / 估算油脂" }
+        ];
+        advice = "外食三大通用法則：主動要求店家「醬料另外放」、「白飯換半碗」、盡量多點一份「不淋肉燥的燙青菜」拉高膳食纖維與飽足感。";
+      }
+
+      document.getElementById('res-food-name').textContent = query;
+      document.getElementById('res-calories').textContent = cal;
+      document.getElementById('res-protein').textContent = `${pro}g`;
+      document.getElementById('res-carbs').textContent = `${carb}g`;
+      document.getElementById('res-fat').textContent = `${fat}g`;
+      document.getElementById('res-ai-advice').textContent = advice;
+
+      const ingList = document.getElementById('res-ingredients-list');
+      ingList.innerHTML = '';
+      ingredients.forEach(item => {
+        const li = document.createElement('li');
+        li.className = "flex justify-between bg-slate-800/40 px-2.5 py-1.5 rounded-lg border border-slate-800";
+        li.innerHTML = `<span>${item.name}</span><span class="text-amber-400 font-medium">${item.spec}</span>`;
+        ingList.appendChild(li);
+      });
+    }
+
+    function logThisMealToDay() {
+      const cal = parseInt(document.getElementById('res-calories').textContent) || 0;
+      const foodName = document.getElementById('res-food-name').textContent;
+      document.getElementById('consumed-cal-input').value = consumedCalories + cal;
+      updateCalories();
+      showToast(`已成功將「${foodName}」計入今日總熱量！`);
+    }
+
+    function scrollToSection(id) {
+      document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Modern Toast Notification
+    function showToast(msg) {
+      const toast = document.getElementById('toast-msg');
+      document.getElementById('toast-text').textContent = msg;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 3000);
+    }
+  </script>
+</body>
+</html>
